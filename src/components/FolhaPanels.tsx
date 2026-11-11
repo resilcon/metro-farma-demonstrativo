@@ -1,6 +1,7 @@
 import { Bar, BarChart, CartesianGrid, LabelList, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { RotateCcw, Users } from 'lucide-react';
+import { RotateCcw, TrendingDown, Users } from 'lucide-react';
 import { brl, brlCompact } from '../lib/format.ts';
+import AnimatedNumber from './AnimatedNumber.tsx';
 
 const TIP = { borderRadius: 14, border: '1px solid rgba(3,50,60,.1)', boxShadow: '0 12px 32px -12px rgba(3,50,60,.3)', fontSize: 13 };
 
@@ -15,7 +16,7 @@ interface ControleProps {
 
 export function FolhaControle({ valor, alterado, onChange, onReset, folhaTotal, escopo }: ControleProps) {
   const v = Math.max(0, Math.min(100, valor * 100));
-  const mantida = folhaTotal * (v / 100);
+  const transferida = folhaTotal * (1 - v / 100);
   return (
     <section className="card lift flex h-full flex-col px-4 py-4 sm:px-5">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -25,7 +26,7 @@ export function FolhaControle({ valor, alterado, onChange, onReset, folhaTotal, 
           </span>
           <div className="leading-tight">
             <h3 className="text-base font-semibold text-teal-900">Folha de pagamento considerada</h3>
-            <p className="text-xs text-stone-brand">Aplicado a {escopo}</p>
+            <p className="text-xs text-stone-brand">% da folha mantida · {escopo}</p>
           </div>
         </div>
         {alterado && (
@@ -34,11 +35,8 @@ export function FolhaControle({ valor, alterado, onChange, onReset, folhaTotal, 
           </button>
         )}
       </div>
-      <p className="mt-3 text-xs text-stone-brand">
-        Percentual da folha que continua nas empresas atuais. Ex.: 60% significa que 40% da folha passa para uma nova empresa, o que reduz os tributos de folha pagos hoje.
-      </p>
 
-      <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-3">
+      <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-3">
         <div className="min-w-[180px] flex-1">
           <input
             aria-label="Percentual da folha considerado"
@@ -71,22 +69,8 @@ export function FolhaControle({ valor, alterado, onChange, onReset, folhaTotal, 
         </label>
       </div>
 
-      <dl className="mt-4 grid grid-cols-3 gap-2 text-xs">
-        <div className="rounded-lg bg-teal-50 px-3 py-2">
-          <dt className="text-stone-brand">Folha total</dt>
-          <dd className="num mt-0.5 text-sm font-semibold text-teal-900">{brl(folhaTotal)}</dd>
-        </div>
-        <div className="rounded-lg bg-teal-50 px-3 py-2">
-          <dt className="text-stone-brand">Mantida</dt>
-          <dd className="num mt-0.5 text-sm font-semibold text-teal-900">{brl(mantida)}</dd>
-        </div>
-        <div className="rounded-lg bg-coral-50 px-3 py-2">
-          <dt className="text-stone-brand">Transferida</dt>
-          <dd className="num mt-0.5 text-sm font-semibold text-coral-600">{brl(folhaTotal - mantida)}</dd>
-        </div>
-      </dl>
-      <p className="mt-3 text-[11px] text-stone-brand">
-        Simula só a queda dos tributos de folha das empresas atuais; não inclui os tributos da nova empresa nem altera o DAS informado.
+      <p className="mt-auto pt-4 text-xs text-stone-brand">
+        Folha transferida: <b className="num text-coral-600">{brl(transferida)}</b> de <span className="num">{brl(folhaTotal)}</span>
       </p>
     </section>
   );
@@ -99,6 +83,20 @@ interface ImpactoProps {
   simulada: { pres: number; alt: number };
 }
 
+function Reducao({ titulo, valor }: { titulo: string; valor: number }) {
+  const tem = valor > 0.5;
+  return (
+    <div className={tem ? 'rounded-xl bg-gradient-to-br from-teal-600 to-teal-800 px-4 py-3 text-white shadow-lg shadow-teal-700/25' : 'rounded-xl bg-teal-50 px-4 py-3 text-stone-brand'}>
+      <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider opacity-85">
+        <TrendingDown size={14} /> Redução de imposto · {titulo}
+      </p>
+      <p className="font-display mt-0.5 text-2xl font-semibold">
+        {tem ? <AnimatedNumber value={valor} format={brl} /> : 'Sem redução'}
+      </p>
+    </div>
+  );
+}
+
 export function FolhaImpacto({ pct, alt, cheia, simulada }: ImpactoProps) {
   const rotulo = Math.round(pct * 100) + '% da folha';
   const igual = pct >= 0.995;
@@ -106,19 +104,20 @@ export function FolhaImpacto({ pct, alt, cheia, simulada }: ImpactoProps) {
     { nome: 'Lucro Presumido', cheia: cheia.pres, simulada: simulada.pres },
     { nome: alt, cheia: cheia.alt, simulada: simulada.alt },
   ];
-  const redPres = cheia.pres - simulada.pres;
-  const redAlt = cheia.alt - simulada.alt;
-  const melhor = simulada.pres <= simulada.alt ? 'Lucro Presumido' : alt;
   return (
     <section className="card lift h-full px-4 py-4 sm:px-5">
-      <h3 className="text-base font-semibold text-teal-900">Efeito da folha na carga tributária</h3>
-      <p className="text-xs text-stone-brand">{igual ? 'Mova o controle ao lado para simular a transferência de folha' : 'Carga com 100% da folha × com ' + rotulo}</p>
-      <div className="mt-3 h-[190px]">
+      <h3 className="text-base font-semibold text-teal-900">Redução de imposto com a folha simulada</h3>
+      <p className="text-xs text-stone-brand">{igual ? 'Mova o controle ao lado para simular' : '100% da folha × ' + rotulo}</p>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <Reducao titulo="Lucro Presumido" valor={cheia.pres - simulada.pres} />
+        <Reducao titulo={alt} valor={cheia.alt - simulada.alt} />
+      </div>
+      <div className="mt-3 h-[150px]">
         <ResponsiveContainer>
-          <BarChart data={data} margin={{ top: 22, right: 8, left: 0, bottom: 0 }} barCategoryGap="28%">
+          <BarChart data={data} margin={{ top: 20, right: 8, left: 0, bottom: 0 }} barCategoryGap="28%">
             <CartesianGrid vertical={false} stroke="rgba(3,50,60,.08)" />
             <XAxis dataKey="nome" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#6f6b69', fontWeight: 600 }} />
-            <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: '#6f6b69' }} tickFormatter={brlCompact} width={64} />
+            <YAxis hide />
             <Tooltip cursor={{ fill: 'rgba(7,120,144,.06)' }} contentStyle={TIP} formatter={(v, n) => [brl(Number(v)), n]} />
             <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
             <Bar dataKey="cheia" name="100% da folha" fill="#b5b1af" radius={[8, 8, 0, 0]} animationDuration={700}>
@@ -130,19 +129,6 @@ export function FolhaImpacto({ pct, alt, cheia, simulada }: ImpactoProps) {
           </BarChart>
         </ResponsiveContainer>
       </div>
-      <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
-        <div className="rounded-lg bg-teal-50 px-3 py-2">
-          <p className="text-stone-brand">Redução no Lucro Presumido</p>
-          <p className="num mt-0.5 text-sm font-semibold text-teal-800">{redPres > 0.5 ? '− ' + brl(redPres) : 'Sem redução'}</p>
-        </div>
-        <div className="rounded-lg bg-teal-50 px-3 py-2">
-          <p className="text-stone-brand">Redução em {alt}</p>
-          <p className="num mt-0.5 text-sm font-semibold text-teal-800">{redAlt > 0.5 ? '− ' + brl(redAlt) : 'Sem redução'}</p>
-        </div>
-      </div>
-      <p className="mt-2 text-xs text-stone-brand">
-        {igual ? 'Com a folha atual' : 'Com ' + rotulo}, a menor carga é <b className="text-teal-900">{melhor}</b>.
-      </p>
     </section>
   );
 }
