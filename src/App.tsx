@@ -15,7 +15,9 @@ import Kpis, { MargemAtual } from './components/Kpis.tsx';
 import CostControl from './components/CostControl.tsx';
 import RegimeControl from './components/RegimeControl.tsx';
 import FaturamentoCard from './components/FaturamentoCard.tsx';
-import { ChartCard, CompositionChart, FaturamentoChart, MonthlyChart, RegimeChart } from './components/Charts.tsx';
+import { FolhaControle, FolhaImpacto } from './components/FolhaPanels.tsx';
+import Splash from './components/Splash.tsx';
+import { ChartCard, CompositionChart, RegimeChart } from './components/Charts.tsx';
 import TaxTable from './components/TaxTable.tsx';
 import StoresTable from './components/StoresTable.tsx';
 import type { Linha } from './components/StoresTable.tsx';
@@ -43,6 +45,9 @@ export default function App() {
   const [simplesLoja, setSimplesLoja] = useState<Record<string, boolean>>({});
   const [simplesGrupo, setSimplesGrupo] = useState(false);
   const [painelAberto, setPainelAberto] = useState(true);
+  const [folhaGlobal, setFolhaGlobal] = useState<number | null>(null);
+  const [folhaLoja, setFolhaLoja] = useState<Record<string, number>>({});
+  const [abertura, setAbertura] = useState(true); // tela de abertura: só volta ao recarregar (F5)
   const tabsRef = useRef<HTMLDivElement>(null);
   const primeira = useRef(true);
 
@@ -58,26 +63,45 @@ export default function App() {
   const selecionadas = useMemo(() => EMPRESAS.filter((e) => sel.has(e.id)), [sel]);
 
   const calc = useMemo(() => {
+    // Individual: custo e folha afetam o cálculo inteiro (como na planilha).
+    // Consolidado: o custo só altera IRPJ e CSLL (créditos de ICMS/PIS/COFINS ficam no custo original).
+    const unicaCalc = selecionadas.length === 1;
+    const folhaDe = (e: (typeof EMPRESAS)[number]) => folhaLoja[e.id] ?? folhaGlobal ?? 1;
+    const opts = (e: (typeof EMPRESAS)[number], folha: number) => ({ folha, custoCreditos: unicaCalc ? undefined : e.p.custo });
     const linhas: Linha[] = selecionadas.map((e) => {
-      const r = calcular(e, custoLoja[e.id] ?? custoGlobal ?? e.p.custo, dasTotal(e, dasEdit));
+      const r = calcular(e, custoLoja[e.id] ?? custoGlobal ?? e.p.custo, dasTotal(e, dasEdit), opts(e, folhaDe(e)));
       const cmp = comparar(r, simplesLoja[e.id] ?? true);
       return { e, r, cmp, melhor: cmp.melhor };
     });
-    const base = consolidar(selecionadas.map((e) => ({ e, r: calcular(e) })));
+    // referência para o efeito do custo: mesmo cenário, com o custo original
+    const base = consolidar(selecionadas.map((e) => ({ e, r: calcular(e, e.p.custo, dasTotal(e, dasEdit), { folha: folhaDe(e) }) })));
+    // referência para o efeito da folha: mesmo cenário, com 100% da folha
+    const semFolha = consolidar(
+      selecionadas.map((e) => ({
+        e,
+        r: calcular(e, custoLoja[e.id] ?? custoGlobal ?? e.p.custo, dasTotal(e, dasEdit), opts(e, 1)),
+      })),
+    );
     const total: Resultado = consolidar(linhas.map(({ e, r }) => ({ e, r })));
     const comSimples = linhas.filter((l) => l.r.simples != null).length;
     const simplesCompleto = linhas.length > 0 && comSimples === linhas.length;
-    if (!simplesCompleto) total.simples = null;
+    if (!simplesCompleto) {
+      total.simples = null;
+      semFolha.simples = null;
+    }
     const totalCmp = comparar(total, simplesGrupo);
     const somaMelhores = linhas.reduce((s, l) => s + l.melhor.valor, 0);
     const otimizado = linhas.length > 1 ? { total: somaMelhores, economia: total.presumido.total - somaMelhores } : null;
-    return { linhas, total, base, totalCmp, otimizado, simplesCompleto, comSimples };
-  }, [selecionadas, custoGlobal, custoLoja, dasEdit, simplesLoja, simplesGrupo]);
+    const folhaTotal = selecionadas.reduce((s, e) => s + e.fopag, 0);
+    const folhaPct = folhaTotal ? selecionadas.reduce((s, e) => s + folhaDe(e) * e.fopag, 0) / folhaTotal : folhaGlobal ?? 1;
+    return { linhas, total, base, semFolha, totalCmp, otimizado, simplesCompleto, comSimples, folhaTotal, folhaPct };
+  }, [selecionadas, custoGlobal, custoLoja, dasEdit, simplesLoja, simplesGrupo, folhaGlobal, folhaLoja]);
 
   const { linhas, total, totalCmp } = calc;
   const unica = selecionadas.length === 1;
   const cmpAtual = unica ? linhas[0].cmp : totalCmp;
   const alterado = custoGlobal !== null || selecionadas.some((e) => custoLoja[e.id] !== undefined);
+  const alteradoFolha = folhaGlobal !== null || selecionadas.some((e) => folhaLoja[e.id] !== undefined);
   const custosDistintos = new Set(linhas.map((l) => l.r.custo.toFixed(4))).size > 1;
 
   const mensal = useMemo(() => {
@@ -130,11 +154,34 @@ export default function App() {
       return n;
     });
   };
-  // "Limpar tudo": desmarca as empresas E devolve o custo ao valor original da planilha
+  // "Limpar tudo": desmarca as empresas E devolve custo e % da folha aos valores originais
   const limparTudo = () => {
     setSel(new Set());
     setCustoGlobal(null);
     setCustoLoja({});
+    setFolhaGlobal(null);
+    setFolhaLoja({});
+  };
+  const alterarFolha = (v: number) => {
+    if (unica) {
+      const id = selecionadas[0].id;
+      setFolhaLoja((c) => ({ ...c, [id]: v }));
+    } else {
+      setFolhaGlobal(v);
+      setFolhaLoja((c) => {
+        const n = { ...c };
+        selecionadas.forEach((e) => delete n[e.id]);
+        return n;
+      });
+    }
+  };
+  const resetarFolha = () => {
+    setFolhaGlobal(null);
+    setFolhaLoja((c) => {
+      const n = { ...c };
+      selecionadas.forEach((e) => delete n[e.id]);
+      return n;
+    });
   };
   const alterarDas = (id: string, mes: string, v: number | null) =>
     setDasEdit((d) => {
@@ -211,14 +258,20 @@ export default function App() {
             <ChartCard title="De onde vem a carga" sub="Composição dos tributos em cada regime">
               <CompositionChart real={total.real.impostos} pres={total.presumido.impostos} />
             </ChartCard>
-            <ChartCard title="Receita e ICMS mês a mês" sub="Soma das empresas selecionadas · empresas com menos meses apurados entram só a partir do 1º mês com dados">
-              <MonthlyChart data={mensal} />
-            </ChartCard>
-            <ChartCard title="Faturamento por empresa" sub="Receita bruta no período apurado">
-              <FaturamentoChart
-                data={linhas.map((l) => ({ nome: nomeLoja(l.e.nome), receita: l.r.receita })).sort((a, b) => b.receita - a.receita)}
-              />
-            </ChartCard>
+            <FolhaControle
+              valor={calc.folhaPct}
+              alterado={alteradoFolha}
+              onChange={alterarFolha}
+              onReset={resetarFolha}
+              folhaTotal={calc.folhaTotal}
+              escopo={escopo}
+            />
+            <FolhaImpacto
+              pct={calc.folhaPct}
+              alt={cmpAtual.alt.nome}
+              cheia={{ pres: calc.semFolha.presumido.total, alt: cmpAtual.usaSimples ? cmpAtual.alt.valor : calc.semFolha.real.total }}
+              simulada={{ pres: cmpAtual.pres, alt: cmpAtual.alt.valor }}
+            />
           </div>
           </div>
         );
@@ -261,6 +314,7 @@ export default function App() {
 
   return (
     <>
+      <AnimatePresence>{abertura && <Splash onEnter={() => setAbertura(false)} />}</AnimatePresence>
       <Header onCsv={() => exportCsv(linhas.map((l) => ({ e: l.e, r: l.r, cmp: l.cmp })))} />
 
       <div ref={tabsRef} className="sticky top-0 z-40 border-b border-teal-900/10 bg-white/85 shadow-[0_12px_32px_-18px_rgba(3,50,60,0.45)] backdrop-blur-xl">

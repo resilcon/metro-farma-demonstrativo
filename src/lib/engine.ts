@@ -35,23 +35,37 @@ export interface Resultado {
 
 const soma = (o: Impostos) => o.pis + o.cofins + o.ipi + o.iss + o.icms + o.irpj + o.csll + o.fopag;
 
-export function calcular(e: Empresa, custoPct: number = e.p.custo, das: number = e.das): Resultado {
+/**
+ * Opções de simulação:
+ * - folha: fração da folha de pagamento considerada (1 = 100%, 0,6 = 60%). Reduz os tributos de folha.
+ * - custoCreditos: custo usado SÓ para os créditos de ICMS/PIS/COFINS. No consolidado, ao mudar o % de custo,
+ *   passa-se o custo original aqui, de modo que apenas o lucro (base de IRPJ e CSLL) seja afetado.
+ */
+export interface Opcoes {
+  folha?: number;
+  custoCreditos?: number;
+}
+
+export function calcular(e: Empresa, custoPct: number = e.p.custo, das: number = e.das, opts: Opcoes = {}): Resultado {
   const p = e.p;
   const R = e.vendas + e.servicos;
-  const F = e.fopag, PL = e.proLabore;
+  const fol = opts.folha ?? 1;
+  const cc = opts.custoCreditos ?? custoPct;
+  const F = e.fopag * fol, PL = e.proLabore * fol;
 
   // ---------- Lucro Real ----------
   const d12 = R * p.c12, d13 = R * p.c13;
   const d15 = -d13 * p.icms, d16 = -d12 * p.pis, d17 = -d12 * p.cofins, d18 = -R * p.iss;
-  const d25 = -R * custoPct;
-  const d20 = -(d25 * p.c13) * p.icms;
-  const d21 = -(d25 * p.c12) * p.c14;
-  const d22 = -(d25 * p.c12) * p.pis;
-  const d23 = -(d25 * p.c12) * p.cofins;
+  const d25 = -R * custoPct; // custo que reduz o lucro
+  const d25c = -R * cc; // custo que gera créditos de impostos
+  const d20 = -(d25c * p.c13) * p.icms;
+  const d21 = -(d25c * p.c12) * p.c14;
+  const d22 = -(d25c * p.c12) * p.pis;
+  const d23 = -(d25c * p.c12) * p.cofins;
   const d14 = -(R * p.c14) + d21;
   const d24 = R + d15 + d16 + d17 + d18 + d20 + d21 + d22 + d23;
   const d26 = d24 + d25;
-  const d27 = -R * p.fopagPct;
+  const d27 = -R * p.fopagPct * fol;
   const d28 = -p.encargos * F;
   const d29 = (d27 + d28) * p.fopagTrib - PL * 0.2;
   const d30 = -(R * p.despesas) - F * 0.08;
@@ -77,7 +91,7 @@ export function calcular(e: Empresa, custoPct: number = e.p.custo, das: number =
   const h21 = R + h13 + h15 + h16 + h19 + h17 + h14;
   const h22 = -R * custoPct;
   const h23 = h21 + h22;
-  const h24 = -R * p.g24;
+  const h24 = -R * p.g24 * fol;
   const h25 = d28;
   const h26 = (h24 + h25) * p.g26 - PL * 0.2;
   const h27 = -R * p.g27;

@@ -33,4 +33,22 @@ eq('CONSOLIDADO carga Real', c.real.total, soma((e) => e.planilha.real));
 eq('CONSOLIDADO carga Presumido', c.presumido.total, soma((e) => e.planilha.presumido));
 console.log(`\nConferidos ${checks} valores (10 lojas, tributo a tributo + consolidado): ${bad ? bad + ' DIVERGÊNCIAS' : 'todos idênticos à planilha (tolerância R$ 0,01)'}`);
 console.log('Consolidado → receita', c.receita.toFixed(2), '| Real', c.real.total.toFixed(2), '| Presumido', c.presumido.total.toFixed(2));
+
+// --- regras novas pedidas pelo cliente ---
+for (const e of d.empresas) {
+  const base = calcular(e);
+  // consolidado: mudar o custo só altera IRPJ e CSLL (créditos e demais tributos ficam como na planilha)
+  const sim = calcular(e, 0.65, e.das, { custoCreditos: e.p.custo });
+  for (const t of ['pis', 'cofins', 'ipi', 'iss', 'icms', 'fopag'] as const) {
+    eq(e.id + ' consolidado: ' + t + ' Real não muda com o custo', sim.real.impostos[t], base.real.impostos[t]);
+    eq(e.id + ' consolidado: ' + t + ' Presumido não muda com o custo', sim.presumido.impostos[t], base.presumido.impostos[t]);
+  }
+  eq(e.id + ' consolidado: Presumido total não muda com o custo', sim.presumido.total, base.presumido.total);
+  // folha: os tributos de folha caem na mesma proporção
+  const f60 = calcular(e, e.p.custo, e.das, { folha: 0.6 });
+  eq(e.id + ' folha 60% -> FOPAG Real', f60.real.impostos.fopag, base.real.impostos.fopag * 0.6);
+  eq(e.id + ' folha 60% -> FOPAG Presumido', f60.presumido.impostos.fopag, base.presumido.impostos.fopag * 0.6);
+  eq(e.id + ' folha 100% idêntica', calcular(e, e.p.custo, e.das, { folha: 1 }).real.total, base.real.total);
+}
+console.log(`Com as regras novas: ${checks} valores conferidos, ${bad ? bad + ' divergências' : 'sem divergências'}`);
 process.exit(bad ? 1 : 0);
