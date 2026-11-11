@@ -1,0 +1,105 @@
+@import "tailwindcss";
+@import "@fontsource-variable/sora";
+@import "@fontsource-variable/inter";
+
+@theme {
+  --font-display: "Sora Variable", "Inter Variable", system-ui, sans-serif;
+  --font-sans: "Inter Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --color-teal-50: #eef8fa;
+  --color-teal-100: #d3edf2;
+  --color-teal-200: #a8dbe5;
+  --color-teal-300: #6fc0d1;
+  --color-teal-400: #34a1b7;
+  --color-teal-500: #0f8aa2;
+  --color-teal-600: #077890;
+  --color-teal-700: #066276;
+  --color-teal-800: #054a58;
+  --color-teal-900: #03323c;
+  --color-teal-950: #021f26;
+
+  --color-coral-50: #fff1f0;
+  --color-coral-100: #fee0de;
+  --color-coral-200: #fcc2be;
+  --color-coral-300: #f99a93;
+  --color-coral-400: #f67c74;
+  --color-coral-500: #f25c54;
+  --color-coral-600: #de443c;
+  --color-coral-700: #b93129;
+
+  --color-stone-brand: #6f6b69;
+  --color-ink: #17262b;
+  --color-paper: #f4f7f8;
+}
+
+html { scroll-behavior: smooth; }
+body {
+  font-family: var(--font-sans);
+  color: var(--color-ink);
+  background: var(--color-paper);
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "tnum" 1, "cv11" 1;
+}
+h1, h2, h3, .font-display { font-family: var(--font-display); letter-spacing: -0.02em; }
+.num { font-variant-numeric: tabular-nums; }
+
+.card {
+  background: #fff;
+  border-radius: 1.25rem;
+  border: 1px solid rgb(3 50 60 / 0.07);
+  box-shadow: 0 1px 2px rgb(3 50 60 / 0.04), 0 8px 30px -12px rgb(3 50 60 / 0.12);
+}
+
+/* slider */
+input[type="range"].slider {
+  -webkit-appearance: none; appearance: none; height: 8px; border-radius: 999px; outline: none;
+  background: linear-gradient(to right, var(--color-coral-500) var(--p, 50%), var(--color-teal-100) var(--p, 50%));
+}
+input[type="range"].slider::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 24px; height: 24px; border-radius: 50%;
+  background: #fff; border: 5px solid var(--color-coral-500); box-shadow: 0 2px 8px rgb(3 50 60 / .3); cursor: grab;
+}
+input[type="range"].slider::-moz-range-thumb {
+  width: 14px; height: 14px; border-radius: 50%; background: #fff; border: 5px solid var(--color-coral-500); cursor: grab;
+}
+:focus-visible { outline: 2px solid var(--color-teal-500); outline-offset: 2px; border-radius: 6px; }
+
+@keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.rise { animation: rise .6s cubic-bezier(.22,1,.36,1) both; }
+@media (prefers-reduced-motion: reduce) { .rise { animation: none; } html { scroll-behavior: auto; } }
+
+@media print {
+  @page { size: A4 landscape; margin: 10mm; }
+  body { background: #fff; }
+  .no-print { display: none !important; }
+  .card { box-shadow: none; break-inside: avoid; }
+  header.sticky { position: static !important; }
+}
+
+/* ---------- refinamentos ---------- */
+.scrollbar-none { scrollbar-width: none; }
+.scrollbar-none::-webkit-scrollbar { display: none; }
+
+.card { transition: transform .35s cubic-bezier(.22,1,.36,1), box-shadow .35s cubic-bezier(.22,1,.36,1), border-color .35s; }
+.lift:hover {
+  transform: translateY(-4px);
+  border-color: rgb(7 120 144 / 0.25);
+  box-shadow: 0 2px 4px rgb(3 50 60 / 0.05), 0 22px 44px -18px rgb(3 50 60 / 0.35);
+}
+
+@keyframes floaty { 0%,100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-18px) rotate(6deg); } }
+.float-slow { animation: floaty 14s ease-in-out infinite; }
+
+@keyframes sweep { from { transform: translateX(-120%) skewX(-20deg); } to { transform: translateX(260%) skewX(-20deg); } }
+.shimmer { position: relative; overflow: hidden; }
+.shimmer::after {
+  content: ""; position: absolute; inset: 0 auto 0 0; width: 40%;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.28), transparent);
+  animation: sweep 4.5s ease-in-out infinite;
+}
+
+@keyframes pulse-ring { 0% { box-shadow: 0 0 0 0 rgb(242 92 84 / 0.55); } 70%,100% { box-shadow: 0 0 0 10px rgb(242 92 84 / 0); } }
+.pulse-ring { animation: pulse-ring 2.2s ease-out infinite; }
+
+@media (prefers-reduced-motion: reduce) { .float-slow, .shimmer::after, .pulse-ring { animation: none; } }
+@media print { .no-print-bar { position: static !important; } }
