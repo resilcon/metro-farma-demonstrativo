@@ -3,7 +3,7 @@ import {
   Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import type { Impostos } from '../lib/engine.ts';
-import { brl, brlCompact, pct } from '../lib/format.ts';
+import { brl, brlCompact } from '../lib/format.ts';
 
 export const COR = { real: '#077890', pres: '#f25c54', simples: '#6f6b69' };
 export const COR_REGIME: Record<string, string> = { 'Lucro Real': COR.real, 'Lucro Presumido': COR.pres, 'Simples Nacional': COR.simples };
@@ -12,10 +12,10 @@ const TIP = { borderRadius: 14, border: '1px solid rgba(3,50,60,.1)', boxShadow:
 
 export function ChartCard({ title, sub, children, className = '' }: { title: string; sub?: string; children: ReactNode; className?: string }) {
   return (
-    <section className={`card lift p-5 sm:p-6 ${className}`}>
-      <h3 className="text-lg font-semibold text-teal-900">{title}</h3>
-      {sub && <p className="mt-0.5 text-sm text-stone-brand">{sub}</p>}
-      <div className="mt-4">{children}</div>
+    <section className={`card lift p-4 sm:p-5 ${className}`}>
+      <h3 className="text-base font-semibold text-teal-900">{title}</h3>
+      {sub && <p className="mt-0.5 text-xs text-stone-brand">{sub}</p>}
+      <div className="mt-3">{children}</div>
     </section>
   );
 }
@@ -23,7 +23,7 @@ export function ChartCard({ title, sub, children, className = '' }: { title: str
 export function RegimeChart({ data }: { data: { name: string; valor: number }[] }) {
   const min = Math.min(...data.map((d) => d.valor));
   return (
-    <div className="h-[300px]">
+    <div className="h-[250px]">
       <ResponsiveContainer>
         <BarChart data={data} margin={{ top: 28, right: 8, left: 0, bottom: 0 }} barCategoryGap="22%">
           <CartesianGrid vertical={false} stroke="rgba(3,50,60,.08)" />
@@ -61,7 +61,7 @@ export function CompositionChart({ real, pres }: { real: Impostos; pres: Imposto
   ];
   return (
     <div>
-      <div className="h-[190px]">
+      <div className="h-[160px]">
         <ResponsiveContainer>
           <BarChart data={data} layout="vertical" margin={{ top: 4, right: 12, left: 0, bottom: 0 }} barCategoryGap="28%">
             <XAxis type="number" hide />
@@ -86,7 +86,7 @@ export function CompositionChart({ real, pres }: { real: Impostos; pres: Imposto
 
 export function MonthlyChart({ data }: { data: { mes: string; receita: number; icms: number }[] }) {
   return (
-    <div className="h-[300px]">
+    <div className="h-[250px]">
       <ResponsiveContainer>
         <AreaChart data={data} margin={{ top: 10, right: 8, left: 0, bottom: 0 }}>
           <defs>
@@ -111,20 +111,17 @@ export function MonthlyChart({ data }: { data: { mes: string; receita: number; i
   );
 }
 
-export function EfetivaChart({ data }: { data: { nome: string; aliquota: number; regime: string }[] }) {
-  const h = Math.max(200, data.length * 40 + 30);
+export function FaturamentoChart({ data }: { data: { nome: string; receita: number }[] }) {
+  const h = Math.max(220, data.length * 40 + 30);
   return (
     <div style={{ height: h }}>
       <ResponsiveContainer>
-        <BarChart data={data} layout="vertical" margin={{ top: 0, right: 56, left: 0, bottom: 0 }} barCategoryGap="24%">
+        <BarChart data={data} layout="vertical" margin={{ top: 0, right: 90, left: 0, bottom: 0 }} barCategoryGap="24%">
           <XAxis type="number" hide domain={[0, 'dataMax']} />
           <YAxis type="category" dataKey="nome" tickLine={false} axisLine={false} width={100} tick={{ ...AXIS, fontWeight: 600 }} />
-          <Tooltip cursor={{ fill: 'rgba(7,120,144,.06)' }} contentStyle={TIP} formatter={(v, _n, p) => [pct(Number(v), 2), p.payload.regime]} />
-          <Bar dataKey="aliquota" radius={[0, 10, 10, 0]}>
-            {data.map((d) => (
-              <Cell key={d.nome} fill={COR_REGIME[d.regime]} />
-            ))}
-            <LabelList dataKey="aliquota" position="right" formatter={(v) => pct(Number(v))} style={{ fontSize: 12, fontWeight: 700, fill: '#03323c' }} />
+          <Tooltip cursor={{ fill: 'rgba(7,120,144,.06)' }} contentStyle={TIP} formatter={(v) => [brl(Number(v)), 'Faturamento']} />
+          <Bar dataKey="receita" radius={[0, 10, 10, 0]} fill="#077890" animationDuration={700}>
+            <LabelList dataKey="receita" position="right" formatter={(v) => brlCompact(Number(v))} style={{ fontSize: 12, fontWeight: 700, fill: '#03323c' }} />
           </Bar>
         </BarChart>
       </ResponsiveContainer>

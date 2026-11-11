@@ -6,8 +6,8 @@ export default function Footer() {
         <div className="space-y-3 text-sm leading-relaxed">
           <p className="font-display text-lg font-semibold text-white">Resilcon Contabilidade Consultiva</p>
           <p>
-            <b className="text-white">Metodologia:</b> a carga tributária de cada loja é calculada com as mesmas fórmulas da planilha
-            comparativa (Lucro Real, Lucro Presumido e Simples Nacional com o DAS informado). No consolidado, cada loja é tributada
+            <b className="text-white">Metodologia:</b> a carga tributária de cada empresa é calculada com as mesmas fórmulas da planilha
+            comparativa. O Lucro Presumido (tributação atual) é sempre a referência: com o Simples ligado compara-se Presumido × Simples (DAS informado); desligado, Presumido × Lucro Real. No consolidado, cada empresa é tributada
             separadamente e os resultados são somados. Valores em R$ no período apurado.
           </p>
           <p className="text-teal-300/80">

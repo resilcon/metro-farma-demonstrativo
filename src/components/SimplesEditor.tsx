@@ -23,14 +23,14 @@ export default function SimplesEditor({ empresas, edit, onChange, onReset }: Pro
         <Info size={18} className="mt-0.5 shrink-0 text-teal-600" />
         <p>
           Valores do <b>DAS</b> (Simples Nacional) pago por mês. Edite qualquer valor da planilha ou preencha os meses que estão vazios — o
-          total da loja e o comparativo entre regimes recalculam na hora. Células alteradas ficam destacadas.
+          total da empresa e o comparativo entre regimes recalculam na hora. Células alteradas ficam destacadas.
         </p>
       </div>
       <div className="overflow-x-auto rounded-2xl border border-teal-900/10">
         <table className="w-full min-w-[1580px] text-sm">
           <thead>
             <tr className="bg-teal-50 text-xs uppercase tracking-wider text-stone-brand">
-              <th className="sticky left-0 z-10 bg-teal-50 px-3 py-3 text-left font-semibold">Loja</th>
+              <th className="sticky left-0 z-10 bg-teal-50 px-3 py-3 text-left font-semibold">Empresa</th>
               {MESES.map((m) => (
                 <th key={m} className="px-1 py-3 text-center font-semibold">{m.slice(0, 3)}</th>
               ))}
@@ -43,12 +43,18 @@ export default function SimplesEditor({ empresas, edit, onChange, onReset }: Pro
             {empresas.map((e) => {
               const tot = dasTotal(e, edit);
               const rec = e.vendas + e.servicos;
+              const faltam = e.meses.filter((m) => m.vendas + m.servicos > 0 && dasMes(e, edit, m.mes) === 0).map((m) => m.mes);
               const mexido = !!edit[e.id] && Object.keys(edit[e.id]).length > 0;
               return (
                 <tr key={e.id} className="border-t border-teal-900/5 transition hover:bg-teal-50/50">
-                  <td className="sticky left-0 z-10 bg-white px-3 py-2">
+                  <td className="sticky left-0 z-10 bg-white px-3 py-1.5">
                     <p className="font-display font-semibold text-teal-900">{nomeLoja(e.nome)}</p>
                     <p className="num text-[11px] text-stone-brand">CNPJ {e.grupo} · filial {e.codigo}</p>
+                    {tot > 0 && faltam.length > 0 && (
+                      <p className="mt-0.5 text-[11px] font-semibold text-coral-600" title="Meses com faturamento e sem DAS informado">
+                        ⚠ sem DAS em: {faltam.map((m) => m.slice(0, 3)).join(', ')}
+                      </p>
+                    )}
                   </td>
                   {MESES.map((m) => {
                     const orig = dasOriginal(e, m);

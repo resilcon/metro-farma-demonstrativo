@@ -2,18 +2,20 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { ChevronDown, Layers, MousePointerClick, User, Users } from 'lucide-react';
 import { EMPRESAS, GRUPOS, QSA } from './lib/data.ts';
-import { calcular, consolidar, melhorRegime } from './lib/engine.ts';
+import { calcular, comparar, consolidar } from './lib/engine.ts';
 import type { Resultado } from './lib/engine.ts';
-import { MESES, nomeLoja, pct, brl } from './lib/format.ts';
+import { MESES, nomeLoja, brl } from './lib/format.ts';
 import { exportCsv } from './lib/exportCsv.ts';
 import Header from './components/Header.tsx';
 import Tabs from './components/Tabs.tsx';
 import type { Aba } from './components/Tabs.tsx';
 import Selector, { ModoToggle } from './components/Selector.tsx';
 import type { Modo } from './components/Selector.tsx';
-import Kpis from './components/Kpis.tsx';
+import Kpis, { MargemAtual } from './components/Kpis.tsx';
 import CostControl from './components/CostControl.tsx';
-import { ChartCard, CompositionChart, EfetivaChart, MonthlyChart, RegimeChart } from './components/Charts.tsx';
+import RegimeControl from './components/RegimeControl.tsx';
+import FaturamentoCard from './components/FaturamentoCard.tsx';
+import { ChartCard, CompositionChart, FaturamentoChart, MonthlyChart, RegimeChart } from './components/Charts.tsx';
 import TaxTable from './components/TaxTable.tsx';
 import StoresTable from './components/StoresTable.tsx';
 import type { Linha } from './components/StoresTable.tsx';
@@ -38,6 +40,8 @@ export default function App() {
   const [custoGlobal, setCustoGlobal] = useState<number | null>(null);
   const [custoLoja, setCustoLoja] = useState<Record<string, number>>({});
   const [dasEdit, setDasEdit] = useState<DasEdit>({});
+  const [simplesLoja, setSimplesLoja] = useState<Record<string, boolean>>({});
+  const [simplesGrupo, setSimplesGrupo] = useState(false);
   const [painelAberto, setPainelAberto] = useState(true);
   const tabsRef = useRef<HTMLDivElement>(null);
   const primeira = useRef(true);
@@ -56,30 +60,25 @@ export default function App() {
   const calc = useMemo(() => {
     const linhas: Linha[] = selecionadas.map((e) => {
       const r = calcular(e, custoLoja[e.id] ?? custoGlobal ?? e.p.custo, dasTotal(e, dasEdit));
-      return { e, r, melhor: melhorRegime(r) };
+      const cmp = comparar(r, simplesLoja[e.id] ?? true);
+      return { e, r, cmp, melhor: cmp.melhor };
     });
     const base = consolidar(selecionadas.map((e) => ({ e, r: calcular(e) })));
     const total: Resultado = consolidar(linhas.map(({ e, r }) => ({ e, r })));
     const comSimples = linhas.filter((l) => l.r.simples != null).length;
     const simplesCompleto = linhas.length > 0 && comSimples === linhas.length;
     if (!simplesCompleto) total.simples = null;
-    const melhor = linhas.length ? melhorRegime(total) : null;
+    const totalCmp = comparar(total, simplesGrupo);
     const somaMelhores = linhas.reduce((s, l) => s + l.melhor.valor, 0);
-    const otimizado = melhor && linhas.length > 1 ? { total: somaMelhores, economia: melhor.valor - somaMelhores } : null;
-    return {
-      linhas,
-      total,
-      base,
-      melhor,
-      otimizado,
-      simplesCompleto,
-      simplesInfo: 'DAS informado em ' + comSimples + ' de ' + linhas.length + ' lojas',
-    };
-  }, [selecionadas, custoGlobal, custoLoja, dasEdit]);
+    const otimizado = linhas.length > 1 ? { total: somaMelhores, economia: total.presumido.total - somaMelhores } : null;
+    return { linhas, total, base, totalCmp, otimizado, simplesCompleto, comSimples };
+  }, [selecionadas, custoGlobal, custoLoja, dasEdit, simplesLoja, simplesGrupo]);
 
-  const { linhas, total, melhor } = calc;
-  const custos = new Set(linhas.map((l) => l.r.custo.toFixed(4)));
+  const { linhas, total, totalCmp } = calc;
+  const unica = selecionadas.length === 1;
+  const cmpAtual = unica ? linhas[0].cmp : totalCmp;
   const alterado = custoGlobal !== null || selecionadas.some((e) => custoLoja[e.id] !== undefined);
+  const custosDistintos = new Set(linhas.map((l) => l.r.custo.toFixed(4))).size > 1;
 
   const mensal = useMemo(() => {
     const m = new Map<string, { mes: string; receita: number; icms: number }>();
@@ -111,7 +110,7 @@ export default function App() {
     if (m === 'individual') setSel((s) => new Set([[...s][0] ?? TODAS[0]]));
   };
   const alterarCusto = (v: number) => {
-    if (selecionadas.length === 1) {
+    if (unica) {
       const id = selecionadas[0].id;
       setCustoLoja((c) => ({ ...c, [id]: v }));
     } else {
@@ -130,6 +129,12 @@ export default function App() {
       selecionadas.forEach((e) => delete n[e.id]);
       return n;
     });
+  };
+  // "Limpar tudo": desmarca as empresas E devolve o custo ao valor original da planilha
+  const limparTudo = () => {
+    setSel(new Set());
+    setCustoGlobal(null);
+    setCustoLoja({});
   };
   const alterarDas = (id: string, mes: string, v: number | null) =>
     setDasEdit((d) => {
@@ -150,27 +155,36 @@ export default function App() {
     setAba('resumo');
   };
 
-
-  const titulo = selecionadas.length === 1 ? nomeLoja(selecionadas[0].nome) : 'Consolidado · ' + selecionadas.length + ' lojas';
-  const escopo = selecionadas.length === 1 ? 'esta loja' : 'todas as lojas selecionadas';
+  const titulo = unica ? nomeLoja(selecionadas[0].nome) : 'Consolidado · ' + selecionadas.length + ' empresas';
+  const escopo = unica ? 'esta empresa' : 'todas as empresas selecionadas';
   const vazio = selecionadas.length === 0 && aba !== 'socios';
 
   const conteudo = () => {
     switch (aba) {
       case 'resumo':
         return (
-          <div className="space-y-8">
-            <Kpis
-              r={total}
-              melhor={melhor}
-              simplesCompleto={calc.simplesCompleto}
-              simplesInfo={calc.simplesInfo}
-              otimizado={calc.otimizado}
-              nLojas={selecionadas.length}
-            />
+          <div className="space-y-3">
+            {unica ? (
+              <RegimeControl
+                consolidado={false}
+                ligado={simplesLoja[linhas[0].e.id] ?? true}
+                disponivel={linhas[0].r.simples != null}
+                aviso="Sem DAS informado para esta empresa — preencha na aba Simples (DAS)."
+                onChange={(v) => setSimplesLoja((s) => ({ ...s, [linhas[0].e.id]: v }))}
+              />
+            ) : (
+              <RegimeControl
+                consolidado
+                ligado={simplesGrupo}
+                disponivel={calc.simplesCompleto}
+                aviso={'DAS informado em ' + calc.comSimples + ' de ' + linhas.length + ' empresas — preencha na aba Simples (DAS).'}
+                onChange={setSimplesGrupo}
+              />
+            )}
+            <Kpis r={total} cmp={cmpAtual} empresas={selecionadas} otimizado={calc.otimizado} consolidado={!unica} />
             <CostControl
               valor={total.custo}
-              misto={custos.size > 1}
+              misto={custosDistintos}
               alterado={alterado}
               onChange={alterarCusto}
               onReset={resetarCusto}
@@ -178,37 +192,34 @@ export default function App() {
               deltaPres={total.presumido.total - calc.base.presumido.total}
               escopo={escopo}
             />
+            <MargemAtual empresas={selecionadas} />
           </div>
         );
       case 'comparativo':
         return (
+          <div className="space-y-6">
+            <FaturamentoCard total={total.receita} mensal={mensal} empresas={selecionadas} />
           <div className="grid gap-6 lg:grid-cols-2">
-            <ChartCard title="Carga tributária por regime" sub="Quanto cada regime custaria no período apurado">
+            <ChartCard title="Carga tributária: Presumido × alternativa" sub={'Lucro Presumido (atual) comparado com ' + cmpAtual.alt.nome}>
               <RegimeChart
                 data={[
-                  { name: 'Lucro Real', valor: total.real.total },
-                  { name: 'Lucro Presumido', valor: total.presumido.total },
-                  ...(total.simples != null ? [{ name: 'Simples Nacional', valor: total.simples }] : []),
+                  { name: 'Lucro Presumido', valor: cmpAtual.pres },
+                  { name: cmpAtual.alt.nome, valor: cmpAtual.alt.valor },
                 ]}
               />
             </ChartCard>
             <ChartCard title="De onde vem a carga" sub="Composição dos tributos em cada regime">
               <CompositionChart real={total.real.impostos} pres={total.presumido.impostos} />
             </ChartCard>
-            <ChartCard title="Receita e ICMS mês a mês" sub="Soma das lojas selecionadas · lojas com menos meses apurados entram só a partir do 1º mês com dados">
+            <ChartCard title="Receita e ICMS mês a mês" sub="Soma das empresas selecionadas · empresas com menos meses apurados entram só a partir do 1º mês com dados">
               <MonthlyChart data={mensal} />
             </ChartCard>
-            <ChartCard title="Alíquota efetiva por loja" sub="Carga do melhor regime sobre a receita">
-              <EfetivaChart
-                data={linhas
-                  .map((l) => ({
-                    nome: nomeLoja(l.e.nome),
-                    aliquota: l.r.receita ? l.melhor.valor / l.r.receita : 0,
-                    regime: l.melhor.nome as string,
-                  }))
-                  .sort((a, b) => b.aliquota - a.aliquota)}
+            <ChartCard title="Faturamento por empresa" sub="Receita bruta no período apurado">
+              <FaturamentoChart
+                data={linhas.map((l) => ({ nome: nomeLoja(l.e.nome), receita: l.r.receita })).sort((a, b) => b.receita - a.receita)}
               />
             </ChartCard>
+          </div>
           </div>
         );
       case 'detalhe':
@@ -219,12 +230,14 @@ export default function App() {
         );
       case 'lojas':
         return (
-          <ChartCard title="Visão por loja" sub="Edite o custo de cada loja individualmente — o consolidado recalcula na hora">
+          <ChartCard title="Visão por empresa" sub="Edite o custo e ligue ou desligue o Simples de cada empresa — o consolidado recalcula na hora">
             <StoresTable
               linhas={linhas}
               total={total}
+              totalCmp={totalCmp}
               onCusto={(id, v) => setCustoLoja((c) => ({ ...c, [id]: v }))}
               onIsolar={isolar}
+              onSimples={(id, v) => setSimplesLoja((s) => ({ ...s, [id]: v }))}
             />
           </ChartCard>
         );
@@ -235,7 +248,7 @@ export default function App() {
             sub={
               calc.simplesCompleto
                 ? 'Total do DAS na seleção: ' + brl(total.simples ?? 0)
-                : calc.simplesInfo + ' — preencha os meses que faltam para comparar'
+                : 'DAS informado em ' + calc.comSimples + ' de ' + linhas.length + ' empresas — preencha os meses que faltam para comparar'
             }
           >
             <SimplesEditor empresas={selecionadas} edit={dasEdit} onChange={alterarDas} onReset={resetarDas} />
@@ -248,7 +261,8 @@ export default function App() {
 
   return (
     <>
-      <Header onCsv={() => exportCsv(linhas.map((l) => ({ e: l.e, r: l.r, melhor: l.melhor.nome })))} />
+      <Header onCsv={() => exportCsv(linhas.map((l) => ({ e: l.e, r: l.r, cmp: l.cmp })))} />
+
       <div ref={tabsRef} className="sticky top-0 z-40 border-b border-teal-900/10 bg-white/85 shadow-[0_12px_32px_-18px_rgba(3,50,60,0.45)] backdrop-blur-xl">
         <div className="mx-auto max-w-[1320px] space-y-1 px-4 py-2 sm:px-8">
           <Tabs aba={aba} onAba={setAba} right={<ModoToggle modo={modo} onModo={trocarModo} />} />
@@ -284,6 +298,7 @@ export default function App() {
                 modo={modo}
                 onToggle={toggle}
                 onSet={(ids) => setSel(new Set(ids))}
+                onLimparTudo={limparTudo}
               />
             </div>
           </div>
@@ -294,12 +309,12 @@ export default function App() {
         {aba !== 'socios' && selecionadas.length > 0 && (
           <div className="flex flex-wrap items-center gap-3">
             <span className="flex items-center gap-2 rounded-full bg-teal-900 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-teal-900/25">
-              {selecionadas.length === 1 ? <User size={16} /> : <Layers size={16} />} {titulo}
+              {unica ? <User size={16} /> : <Layers size={16} />} {titulo}
             </span>
-            <span className="text-sm text-stone-brand">
-              {PERIODO} · custo {custos.size > 1 ? 'médio ' : ''}
-              {pct(total.custo)}
-            </span>
+            <span className="text-sm text-stone-brand">{PERIODO}</span>
+            {alterado && (
+              <span className="rounded-full bg-coral-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-coral-700">Custo simulado</span>
+            )}
           </div>
         )}
 
@@ -315,7 +330,7 @@ export default function App() {
               <div className="card grid place-items-center gap-3 p-14 text-center">
                 <MousePointerClick size={40} className="text-coral-500" />
                 <h2 className="text-xl font-semibold text-teal-900">Nenhuma empresa selecionada</h2>
-                <p className="max-w-md text-stone-brand">Escolha uma ou mais lojas na barra acima para montar o demonstrativo.</p>
+                <p className="max-w-md text-stone-brand">Escolha uma ou mais empresas na barra acima para montar o demonstrativo.</p>
               </div>
             ) : (
               conteudo()

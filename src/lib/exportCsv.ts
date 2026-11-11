@@ -1,17 +1,20 @@
-import type { Empresa, Resultado } from './engine.ts';
+import type { Comparacao, Empresa, Resultado } from './engine.ts';
 
-export function exportCsv(linhas: { e: Empresa; r: Resultado; melhor: string }[]) {
-  const head = ['Código', 'Loja', 'Meses', 'Receita', 'Custo %', 'Carga Lucro Real', 'Carga Lucro Presumido', 'DAS Simples', 'Melhor regime'];
-  const rows = linhas.map(({ e, r, melhor }) => [
-    e.id,
+export function exportCsv(linhas: { e: Empresa; r: Resultado; cmp: Comparacao }[]) {
+  const head = ['CNPJ', 'Filial', 'Empresa', 'Faturamento', 'Margem atual %', 'Custo %', 'Carga Lucro Presumido', 'Carga Lucro Real', 'DAS Simples', 'Comparação com', 'Diferença vs Presumido (+ economia)', 'Melhor regime'];
+  const rows = linhas.map(({ e, r, cmp }) => [
+    e.grupo,
+    e.codigo,
     e.nome,
-    e.meses.length,
     r.receita.toFixed(2),
+    (e.margemAtual * 100).toFixed(2),
     (r.custo * 100).toFixed(1),
-    r.real.total.toFixed(2),
     r.presumido.total.toFixed(2),
+    r.real.total.toFixed(2),
     r.simples == null ? '' : r.simples.toFixed(2),
-    melhor,
+    cmp.alt.nome,
+    cmp.difAlt.toFixed(2),
+    cmp.melhor.nome,
   ]);
   const csv = [head, ...rows].map((l) => l.map((c) => '"' + String(c).split('"').join('""') + '"').join(';')).join('\r\n');
   const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });

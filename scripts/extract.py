@@ -36,12 +36,17 @@ for name in wv.sheetnames:
         lab = str(ws[f'J{r}'].value or '').strip().upper()
         if lab in ('PIS', 'COFINS', 'IPI', 'ISS', 'ICMS', 'IRPJ', 'CSLL', 'FOPAG'):
             quebra[lab.lower()] = dict(real=num(ws[f'K{r}'].value), presumido=num(ws[f'L{r}'].value))
+    margem = 0.0
+    for r in range(40, 54):
+        if 'marg' in str(ws[f'G{r}'].value or '').lower():
+            margem = num(ws[f'H{r}'].value)
+            break
     somaMeses = dict(vendas=sum(m['vendas'] for m in months), servicos=sum(m['servicos'] for m in months))
     companies.append(dict(
         id=f'{m.group(1)}.{m.group(2)}', grupo=m.group(1), codigo=m.group(2), nome=m.group(3).strip(), aba=name,
         meses=months,
         vendas=g('K23'), servicos=g('L23'), compras=g('K25'),
-        fopag=tot(cF), proLabore=tot(cP), das=d7, icmsPago=tot(cM),
+        margemAtual=margem, fopag=tot(cF), proLabore=tot(cP), das=d7, icmsPago=tot(cM),
         p=dict(c12=g('C12'), c13=g('C13'), c14=g('C14'), icms=g('C15'), pis=g('C16'), cofins=g('C17'), iss=g('C18'),
                custo=g('C25'), fopagPct=g('C27'), encargos=g('C28'), fopagTrib=g('C29'), despesas=g('C30'),
                csll=g('C33'), irpj=g('C34'), adicional=g('C36'), meses=g('C37'),

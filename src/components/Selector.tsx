@@ -46,17 +46,22 @@ interface Props {
   modo: Modo;
   onToggle: (id: string) => void;
   onSet: (ids: string[]) => void;
+  onLimparTudo: () => void;
 }
 
-export default function Selector({ empresas, grupos, sel, modo, onToggle, onSet }: Props) {
+export default function Selector({ empresas, grupos, sel, modo, onToggle, onSet, onLimparTudo }: Props) {
   const multi = modo === 'consolidado';
   const controles = (
     <div className="ml-auto flex shrink-0 items-center gap-1">
       <button onClick={() => onSet(empresas.map((e) => e.id))} className="rounded-full bg-teal-700 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-teal-800 active:scale-95">
         Todas
       </button>
-      <button onClick={() => onSet([])} className="rounded-full px-3 py-1.5 text-xs font-semibold text-stone-brand transition hover:bg-stone-100 active:scale-95">
-        Limpar
+      <button
+        onClick={onLimparTudo}
+        title="Desmarca as empresas e volta o custo para o valor original da planilha"
+        className="rounded-full px-3 py-1.5 text-xs font-semibold text-stone-brand transition hover:bg-stone-100 active:scale-95"
+      >
+        Limpar tudo
       </button>
     </div>
   );

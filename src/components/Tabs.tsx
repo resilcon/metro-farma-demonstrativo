@@ -8,7 +8,7 @@ export const ABAS: { id: Aba; label: string; Icon: typeof Gauge }[] = [
   { id: 'resumo', label: 'Resumo', Icon: Gauge },
   { id: 'comparativo', label: 'Comparativo', Icon: BarChart3 },
   { id: 'detalhe', label: 'Detalhamento', Icon: Table2 },
-  { id: 'lojas', label: 'Por loja', Icon: Calculator },
+  { id: 'lojas', label: 'Por empresa', Icon: Calculator },
   { id: 'simples', label: 'Simples (DAS)', Icon: Wallet },
   { id: 'socios', label: 'Sócios', Icon: Users },
 ];

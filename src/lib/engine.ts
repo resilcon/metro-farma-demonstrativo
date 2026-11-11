@@ -14,7 +14,7 @@ export interface Mes { mes: string; vendas: number; servicos: number; icms: numb
 export interface Empresa {
   id: string; grupo: string; codigo: string; nome: string; aba: string;
   meses: Mes[]; vendas: number; servicos: number; compras: number; fopag: number; proLabore: number;
-  das: number; icmsPago: number; p: Params;
+  das: number; icmsPago: number; margemAtual: number; p: Params;
   planilha: { real: number; presumido: number; simples: number; melhor: string; lucroLiquidoReal: number; lucroReal: number };
 }
 
@@ -133,3 +133,27 @@ export function consolidar(lista: { e: Empresa; r: Resultado }[]): Resultado {
   return out;
 }
 export { soma as somaImpostos };
+
+/**
+ * Comparação pedida pelo cliente: o Lucro Presumido é SEMPRE a referência (tributação atual).
+ * - Simples ligado  -> Presumido x Simples Nacional (sem Lucro Real)
+ * - Simples desligado -> Presumido x Lucro Real
+ * `difAlt` = Presumido - alternativa (positivo = a alternativa é mais barata, ou seja, economia).
+ */
+export interface Comparacao {
+  usaSimples: boolean;
+  pres: number;
+  alt: { nome: RegimeNome; valor: number };
+  melhor: { nome: RegimeNome; valor: number; economia: number };
+  difAlt: number;
+}
+export function comparar(r: Resultado, quer: boolean): Comparacao {
+  const usaSimples = quer && r.simples != null;
+  const alt = usaSimples
+    ? { nome: 'Simples Nacional' as RegimeNome, valor: r.simples as number }
+    : { nome: 'Lucro Real' as RegimeNome, valor: r.real.total };
+  const pres = r.presumido.total;
+  const altMelhor = alt.valor < pres;
+  const melhor = altMelhor ? alt : { nome: 'Lucro Presumido' as RegimeNome, valor: pres };
+  return { usaSimples, pres, alt, melhor: { ...melhor, economia: pres - melhor.valor }, difAlt: pres - alt.valor };
+}
