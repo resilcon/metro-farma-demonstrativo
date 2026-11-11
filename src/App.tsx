@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { Layers, MousePointerClick, User } from 'lucide-react';
+import { ChevronDown, Layers, MousePointerClick, User, Users } from 'lucide-react';
 import { EMPRESAS, GRUPOS, QSA } from './lib/data.ts';
 import { calcular, consolidar, melhorRegime } from './lib/engine.ts';
 import type { Resultado } from './lib/engine.ts';
@@ -38,6 +38,7 @@ export default function App() {
   const [custoGlobal, setCustoGlobal] = useState<number | null>(null);
   const [custoLoja, setCustoLoja] = useState<Record<string, number>>({});
   const [dasEdit, setDasEdit] = useState<DasEdit>({});
+  const [painelAberto, setPainelAberto] = useState(true);
   const tabsRef = useRef<HTMLDivElement>(null);
   const primeira = useRef(true);
 
@@ -251,14 +252,41 @@ export default function App() {
       <div ref={tabsRef} className="sticky top-0 z-40 border-b border-teal-900/10 bg-white/85 shadow-[0_12px_32px_-18px_rgba(3,50,60,0.45)] backdrop-blur-xl">
         <div className="mx-auto max-w-[1320px] space-y-1 px-4 py-2 sm:px-8">
           <Tabs aba={aba} onAba={setAba} right={<ModoToggle modo={modo} onModo={trocarModo} />} />
-          <Selector
-            empresas={EMPRESAS}
-            grupos={GRUPOS}
-            sel={sel}
-            modo={modo}
-            onToggle={toggle}
-            onSet={(ids) => setSel(new Set(ids))}
-          />
+          <button
+            onClick={() => setPainelAberto((v) => !v)}
+            aria-expanded={painelAberto}
+            aria-controls="painel-empresas"
+            className="no-print group flex w-full items-center justify-between gap-3 rounded-xl px-3 py-1.5 text-left transition hover:bg-teal-50"
+          >
+            <span className="flex items-center gap-2 text-sm font-semibold text-teal-900">
+              <Users size={16} className="text-teal-600" />
+              Empresas
+              <span className="rounded-full bg-teal-100 px-2.5 py-0.5 text-xs font-bold text-teal-800">
+                {selecionadas.length === 0 ? 'nenhuma selecionada' : titulo}
+              </span>
+            </span>
+            <span className="flex items-center gap-1 text-xs font-semibold text-stone-brand transition group-hover:text-teal-700">
+              {painelAberto ? 'Recolher' : 'Expandir'}
+              <ChevronDown size={16} className={'transition-transform duration-300 ' + (painelAberto ? 'rotate-180' : '')} />
+            </span>
+          </button>
+          <div
+            id="painel-empresas"
+            className="grid transition-[grid-template-rows,opacity] duration-300 ease-out"
+            style={{ gridTemplateRows: painelAberto ? '1fr' : '0fr', opacity: painelAberto ? 1 : 0 }}
+            aria-hidden={!painelAberto}
+          >
+            <div className="min-h-0 overflow-hidden">
+              <Selector
+                empresas={EMPRESAS}
+                grupos={GRUPOS}
+                sel={sel}
+                modo={modo}
+                onToggle={toggle}
+                onSet={(ids) => setSel(new Set(ids))}
+              />
+            </div>
+          </div>
         </div>
       </div>
 
