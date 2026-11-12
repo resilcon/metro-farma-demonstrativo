@@ -63,11 +63,11 @@ export default function App() {
   const selecionadas = useMemo(() => EMPRESAS.filter((e) => sel.has(e.id)), [sel]);
 
   const calc = useMemo(() => {
-    // Individual: custo e folha afetam o cálculo inteiro (como na planilha).
-    // Consolidado: o custo só altera IRPJ e CSLL (créditos de ICMS/PIS/COFINS ficam no custo original).
-    const unicaCalc = selecionadas.length === 1;
+    // Custo: em qualquer visão (individual ou consolidado) o % de custo só altera IRPJ e CSLL;
+    // os créditos de ICMS/PIS/COFINS ficam no custo original da planilha.
+    // Folha: o % da folha reduz os tributos de folha.
     const folhaDe = (e: (typeof EMPRESAS)[number]) => folhaLoja[e.id] ?? folhaGlobal ?? 1;
-    const opts = (e: (typeof EMPRESAS)[number], folha: number) => ({ folha, custoCreditos: unicaCalc ? undefined : e.p.custo });
+    const opts = (e: (typeof EMPRESAS)[number], folha: number) => ({ folha, custoCreditos: e.p.custo });
     const linhas: Linha[] = selecionadas.map((e) => {
       const r = calcular(e, custoLoja[e.id] ?? custoGlobal ?? e.p.custo, dasTotal(e, dasEdit), opts(e, folhaDe(e)));
       const cmp = comparar(r, simplesLoja[e.id] ?? true);
