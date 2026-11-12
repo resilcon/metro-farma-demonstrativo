@@ -1,6 +1,5 @@
 import { Crosshair } from 'lucide-react';
 import clsx from 'clsx';
-import { comparar, consolidar } from '../lib/engine.ts';
 import type { Comparacao, Empresa, Resultado } from '../lib/engine.ts';
 import { brl, nomeLoja, pct } from '../lib/format.ts';
 import { COR_REGIME } from './Charts.tsx';
@@ -16,7 +15,6 @@ interface Props {
   fora: Set<string>; // empresas desmarcadas (não entram na soma do rodapé)
   onFora: (id: string, fora: boolean) => void;
   onTodas: (marcar: boolean) => void;
-  simplesGrupo: boolean;
   onCusto: (id: string, v: number) => void;
   onIsolar: (id: string) => void;
   onSimples: (id: string, v: boolean) => void;
@@ -28,21 +26,24 @@ function Dif({ d }: { d: number }) {
   if (Math.abs(d) < 0.5) return <span className="text-stone-brand">—</span>;
   return (
     <span className={clsx('whitespace-nowrap font-semibold leading-tight', d > 0 ? 'text-teal-700' : 'text-coral-600')}>
-      {(d > 0 ? '− ' : '+ ') + brl(Math.abs(d))}
+      {brl(Math.abs(d))}
       <span className="block text-[10px] font-medium uppercase tracking-wide text-stone-brand">{d > 0 ? 'economia' : 'a mais'}</span>
     </span>
   );
 }
 
-export default function StoresTable({ linhas, fora, onFora, onTodas, simplesGrupo, onCusto, onIsolar, onSimples }: Props) {
-  // O rodapé soma SÓ as empresas marcadas (cada empresa é tributada separadamente e os resultados são somados).
+export default function StoresTable({ linhas, fora, onFora, onTodas, onCusto, onIsolar, onSimples }: Props) {
+  // O rodapé soma SÓ as empresas marcadas, exatamente como aparece em cada coluna.
+  // A diferença é somada em valor absoluto (tudo positivo): economia e custo a mais não se anulam.
   const marcadas = linhas.filter((l) => !fora.has(l.e.id));
-  const sub: Resultado = consolidar(marcadas.map(({ e, r }) => ({ e, r })));
-  if (!marcadas.every((l) => l.r.simples != null)) sub.simples = null;
-  const subCmp = comparar(sub, simplesGrupo);
-  const recMarcadas = marcadas.reduce((s, l) => s + l.r.receita, 0);
-  const margemMarcadas = recMarcadas ? marcadas.reduce((s, l) => s + l.e.margemAtual * l.r.receita, 0) / recMarcadas : 0;
   const nenhuma = marcadas.length === 0;
+  const somaReceita = marcadas.reduce((s, l) => s + l.r.receita, 0);
+  const somaPres = marcadas.reduce((s, l) => s + l.r.presumido.total, 0);
+  const somaAlt = marcadas.reduce((s, l) => s + l.cmp.alt.valor, 0);
+  const somaDif = marcadas.reduce((s, l) => s + Math.abs(l.cmp.difAlt), 0);
+  const margemMarcadas = somaReceita ? marcadas.reduce((s, l) => s + l.e.margemAtual * l.r.receita, 0) / somaReceita : 0;
+  const nomesAlt = new Set(marcadas.map((l) => l.cmp.alt.nome));
+  const rotuloAlt = nomesAlt.size === 1 ? CURTO[[...nomesAlt][0]] : 'Real + Simples';
   const tdNum = 'num whitespace-nowrap px-2 py-2 text-right';
 
   return (
@@ -161,23 +162,24 @@ export default function StoresTable({ linhas, fora, onFora, onTodas, simplesGrup
         <tfoot>
           <tr className="bg-teal-900 text-white">
             <td colSpan={2} className="whitespace-nowrap rounded-bl-xl px-3 py-3 font-display font-semibold">
-              {nenhuma ? 'Nenhuma marcada' : marcadas.length === linhas.length ? 'Consolidado' : 'Soma das marcadas'}
+              {nenhuma ? 'Nenhuma marcada' : marcadas.length === linhas.length ? 'Soma de todas' : 'Soma das marcadas'}
               <span className="ml-2 text-[11px] font-medium text-teal-200">
                 {marcadas.length} de {linhas.length}
               </span>
             </td>
-            <td className="num whitespace-nowrap px-2 py-3 text-right font-bold">{nenhuma ? '—' : brl(sub.receita)}</td>
+            <td className="num whitespace-nowrap px-2 py-3 text-right font-bold">{nenhuma ? '—' : brl(somaReceita)}</td>
             <td className="num whitespace-nowrap px-2 py-3 text-right text-teal-200">{nenhuma ? '' : pct(margemMarcadas, 2)}</td>
             <td />
-            <td className="num whitespace-nowrap px-2 py-3 text-right font-bold">{nenhuma ? '—' : brl(sub.presumido.total)}</td>
+            <td className="num whitespace-nowrap px-2 py-3 text-right font-bold">{nenhuma ? '—' : brl(somaPres)}</td>
             <td className="num whitespace-nowrap px-2 py-3 text-right font-bold">
-              {nenhuma ? '—' : brl(subCmp.alt.valor)}
-              {!nenhuma && <span className="block text-[10px] font-medium uppercase tracking-wide text-teal-200">{CURTO[subCmp.alt.nome]}</span>}
+              {nenhuma ? '—' : brl(somaAlt)}
+              {!nenhuma && <span className="block text-[10px] font-medium uppercase tracking-wide text-teal-200">{rotuloAlt}</span>}
             </td>
             <td className="num whitespace-nowrap px-2 py-3 text-right font-bold">
-              {nenhuma || Math.abs(subCmp.difAlt) < 0.5 ? '—' : (subCmp.difAlt > 0 ? '− ' : '+ ') + brl(Math.abs(subCmp.difAlt))}
+              {nenhuma ? '—' : brl(somaDif)}
+              {!nenhuma && <span className="block text-[10px] font-medium uppercase tracking-wide text-teal-200">soma dos valores</span>}
             </td>
-            <td className="whitespace-nowrap px-2 py-3 text-xs font-bold">{nenhuma ? '' : CURTO[subCmp.melhor.nome]}</td>
+            <td />
             <td />
             <td className="rounded-br-xl" />
           </tr>

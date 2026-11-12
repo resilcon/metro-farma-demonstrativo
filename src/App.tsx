@@ -298,7 +298,6 @@ export default function App() {
                 })
               }
               onTodas={(marcar) => setFora(marcar ? new Set() : new Set(linhas.map((l) => l.e.id)))}
-              simplesGrupo={simplesGrupo}
               onCusto={(id, v) => setCustoLoja((c) => ({ ...c, [id]: v }))}
               onIsolar={isolar}
               onSimples={(id, v) => setSimplesLoja((s) => ({ ...s, [id]: v }))}
