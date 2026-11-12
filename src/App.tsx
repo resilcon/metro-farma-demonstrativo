@@ -44,6 +44,7 @@ export default function App() {
   const [dasEdit, setDasEdit] = useState<DasEdit>({});
   const [simplesLoja, setSimplesLoja] = useState<Record<string, boolean>>({});
   const [simplesGrupo, setSimplesGrupo] = useState(false);
+  const [fora, setFora] = useState<Set<string>>(new Set()); // empresas desmarcadas na soma do rodapé (aba Por empresa)
   const [painelAberto, setPainelAberto] = useState(true);
   const [folhaGlobal, setFolhaGlobal] = useState<number | null>(null);
   const [folhaLoja, setFolhaLoja] = useState<Record<string, number>>({});
@@ -161,6 +162,7 @@ export default function App() {
     setCustoLoja({});
     setFolhaGlobal(null);
     setFolhaLoja({});
+    setFora(new Set());
   };
   const alterarFolha = (v: number) => {
     if (unica) {
@@ -286,8 +288,17 @@ export default function App() {
           <ChartCard title="Visão por empresa" sub="Edite o custo e ligue ou desligue o Simples de cada empresa — o consolidado recalcula na hora">
             <StoresTable
               linhas={linhas}
-              total={total}
-              totalCmp={totalCmp}
+              fora={fora}
+              onFora={(id, f) =>
+                setFora((s) => {
+                  const n = new Set(s);
+                  if (f) n.add(id);
+                  else n.delete(id);
+                  return n;
+                })
+              }
+              onTodas={(marcar) => setFora(marcar ? new Set() : new Set(linhas.map((l) => l.e.id)))}
+              simplesGrupo={simplesGrupo}
               onCusto={(id, v) => setCustoLoja((c) => ({ ...c, [id]: v }))}
               onIsolar={isolar}
               onSimples={(id, v) => setSimplesLoja((s) => ({ ...s, [id]: v }))}

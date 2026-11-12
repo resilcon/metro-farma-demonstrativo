@@ -1,5 +1,6 @@
 import { Crosshair } from 'lucide-react';
 import clsx from 'clsx';
+import { comparar, consolidar } from '../lib/engine.ts';
 import type { Comparacao, Empresa, Resultado } from '../lib/engine.ts';
 import { brl, nomeLoja, pct } from '../lib/format.ts';
 import { COR_REGIME } from './Charts.tsx';
@@ -12,8 +13,10 @@ export interface Linha {
 }
 interface Props {
   linhas: Linha[];
-  total: Resultado;
-  totalCmp: Comparacao;
+  fora: Set<string>; // empresas desmarcadas (não entram na soma do rodapé)
+  onFora: (id: string, fora: boolean) => void;
+  onTodas: (marcar: boolean) => void;
+  simplesGrupo: boolean;
   onCusto: (id: string, v: number) => void;
   onIsolar: (id: string) => void;
   onSimples: (id: string, v: boolean) => void;
@@ -37,12 +40,33 @@ function Dif({ c }: { c: Comparacao }) {
   );
 }
 
-export default function StoresTable({ linhas, total, totalCmp, onCusto, onIsolar, onSimples }: Props) {
+export default function StoresTable({ linhas, fora, onFora, onTodas, simplesGrupo, onCusto, onIsolar, onSimples }: Props) {
+  // O rodapé soma SÓ as empresas marcadas (cada empresa é tributada separadamente e os resultados são somados).
+  const marcadas = linhas.filter((l) => !fora.has(l.e.id));
+  const sub: Resultado = consolidar(marcadas.map(({ e, r }) => ({ e, r })));
+  if (!marcadas.every((l) => l.r.simples != null)) sub.simples = null;
+  const subCmp = comparar(sub, simplesGrupo);
+  const recMarcadas = marcadas.reduce((s, l) => s + l.r.receita, 0);
+  const margemMarcadas = recMarcadas ? marcadas.reduce((s, l) => s + l.e.margemAtual * l.r.receita, 0) / recMarcadas : 0;
+  const nenhuma = marcadas.length === 0;
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[1180px] text-sm">
+      <table className="w-full min-w-[1240px] text-sm">
         <thead>
           <tr className="border-b-2 border-teal-900/10 text-xs uppercase tracking-wider text-stone-brand">
+            <th className="w-10 px-3 py-2">
+              <input
+                type="checkbox"
+                aria-label="Marcar ou desmarcar todas as empresas na soma"
+                title="Marcar ou desmarcar todas"
+                checked={marcadas.length === linhas.length}
+                ref={(el) => {
+                  if (el) el.indeterminate = marcadas.length > 0 && marcadas.length < linhas.length;
+                }}
+                onChange={(ev) => onTodas(ev.target.checked)}
+                className="h-4 w-4 cursor-pointer accent-teal-600"
+              />
+            </th>
             <th className="px-3 py-2 text-left font-semibold">Empresa</th>
             <th className="px-3 py-2 text-right font-semibold">Faturamento</th>
             <th className="px-3 py-2 text-right font-semibold">Margem atual</th>
@@ -60,7 +84,17 @@ export default function StoresTable({ linhas, total, totalCmp, onCusto, onIsolar
           {linhas.map(({ e, r, cmp, melhor }) => {
             const temDas = r.simples != null;
             return (
-              <tr key={e.id} className="border-b border-teal-900/5 transition hover:bg-teal-50/60">
+              <tr key={e.id} className={clsx('border-b border-teal-900/5 transition hover:bg-teal-50/60', fora.has(e.id) && 'opacity-45')}>
+                <td className="px-3 py-2">
+                  <input
+                    type="checkbox"
+                    aria-label={'Somar ' + e.nome + ' no rodapé'}
+                    title="Marcar para entrar na soma do rodapé"
+                    checked={!fora.has(e.id)}
+                    onChange={(ev) => onFora(e.id, !ev.target.checked)}
+                    className="h-4 w-4 cursor-pointer accent-teal-600"
+                  />
+                </td>
                 <td className="px-3 py-2">
                   <p className="font-display font-semibold text-teal-900">{nomeLoja(e.nome)}</p>
                   <p className="num text-xs text-stone-brand">
@@ -131,25 +165,28 @@ export default function StoresTable({ linhas, total, totalCmp, onCusto, onIsolar
             );
           })}
         </tbody>
-        {linhas.length > 1 && (
-          <tfoot>
-            <tr className="bg-teal-900 text-white">
-              <td className="rounded-bl-2xl px-3 py-3 font-display font-semibold">Consolidado</td>
-              <td className="num px-3 py-3 text-right font-bold">{brl(total.receita)}</td>
-              <td />
-              <td />
-              <td className="num px-3 py-3 text-right font-bold">{brl(total.presumido.total)}</td>
-              <td className="num px-3 py-3 text-right font-bold">{totalCmp.usaSimples ? '—' : brl(total.real.total)}</td>
-              <td className="num px-3 py-3 text-right font-bold">{totalCmp.usaSimples && total.simples != null ? brl(total.simples) : '—'}</td>
-              <td className="num px-3 py-3 text-right font-bold">
-                {Math.abs(totalCmp.difAlt) < 0.5 ? '—' : (totalCmp.difAlt > 0 ? '− ' : '+ ') + brl(Math.abs(totalCmp.difAlt))}
-              </td>
-              <td className="px-3 py-3 text-xs font-bold">{totalCmp.melhor.nome}</td>
-              <td />
-              <td className="rounded-br-2xl" />
-            </tr>
-          </tfoot>
-        )}
+        <tfoot>
+          <tr className="bg-teal-900 text-white">
+            <td colSpan={2} className="rounded-bl-2xl px-3 py-3 font-display font-semibold">
+              {nenhuma ? 'Nenhuma empresa marcada' : marcadas.length === linhas.length ? 'Consolidado' : 'Soma das marcadas'}
+              <span className="ml-2 text-xs font-medium text-teal-200">
+                {marcadas.length} de {linhas.length}
+              </span>
+            </td>
+            <td className="num px-3 py-3 text-right font-bold">{nenhuma ? '—' : brl(sub.receita)}</td>
+            <td className="num px-3 py-3 text-right text-teal-200">{nenhuma ? '' : pct(margemMarcadas, 2)}</td>
+            <td />
+            <td className="num px-3 py-3 text-right font-bold">{nenhuma ? '—' : brl(sub.presumido.total)}</td>
+            <td className="num px-3 py-3 text-right font-bold">{nenhuma || subCmp.usaSimples ? '—' : brl(sub.real.total)}</td>
+            <td className="num px-3 py-3 text-right font-bold">{!nenhuma && subCmp.usaSimples && sub.simples != null ? brl(sub.simples) : '—'}</td>
+            <td className="num px-3 py-3 text-right font-bold">
+              {nenhuma || Math.abs(subCmp.difAlt) < 0.5 ? '—' : (subCmp.difAlt > 0 ? '− ' : '+ ') + brl(Math.abs(subCmp.difAlt))}
+            </td>
+            <td className="px-3 py-3 text-xs font-bold">{nenhuma ? '' : subCmp.melhor.nome}</td>
+            <td />
+            <td className="rounded-br-2xl" />
+          </tr>
+        </tfoot>
       </table>
     </div>
   );
